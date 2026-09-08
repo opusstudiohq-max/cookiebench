@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "verify:chain": "node scripts/verify-chain.mjs",
-    "deploy": "npm run build && node scripts/deploy-pages.mjs"
+    "deploy": "npm run build && node scripts/deploy-pages.mjs",
+    "verify:memo": "node scripts/verify-memo-tx.mjs"
   },
   "dependencies": {
     "@solana/web3.js": "^1.98.0",

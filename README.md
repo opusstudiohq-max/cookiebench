@@ -126,6 +126,7 @@ Then open the printed local URL. The network pulse works immediately; the finali
 | `npm run preview` | Serve the production build |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run verify:chain` | Independently verify every chain claim in this README |
+| `npm run verify:memo` | Simulate the exact Memo transactions the app builds, spending nothing |
 
 ---
 
@@ -164,6 +165,45 @@ All checks passed.
 ```
 
 *(Numbers above captured 2026-09-08; slot and epoch values naturally advance.)*
+
+---
+
+## Verify the transactions without spending anything
+
+`npm run verify:memo` builds the **exact** transactions the app sends, round-trips them through
+the wire format a wallet would sign, and runs them through `simulateTransaction` with
+`sigVerify: false` using an existing funded account as a stand-in fee payer. Nothing is signed,
+nothing is broadcast, and no balance changes:
+
+```
+probe: "cookiebench:v1 probe n=1"
+  serialized        194 bytes
+  simulation error  none
+  memo program ran  yes
+  memo text echoed  yes
+    | Program MemoSq4... invoke [1]
+    | Program log: Signed by 568tU9FMksJDxjkLBjWisSA4J4C5uPH87NCCkyREwrxe
+    | Program log: Memo (len 24): "cookiebench:v1 probe n=1"
+    | Program MemoSq4... consumed 23495 of 200000 compute units
+    | Program MemoSq4... success
+  RESULT: pass
+```
+
+Both the probe and the scorecard shape execute cleanly against Cookie Chain.
+
+### What is verified, and what is not
+
+Being precise about this matters more than sounding finished:
+
+- **Verified against the live chain:** every read path (network pulse, slot cadence, scoreboard
+  indexing), all five genesis programs, and the on-chain execution of both transaction shapes,
+  including signer attribution and compute cost.
+- **Not yet exercised end-to-end:** the wallet signing round-trip and live broadcast, which need a
+  funded COOK wallet and a browser extension. The instruction encoding underneath is what
+  `verify:memo` proves; the remaining surface is the wallet handoff.
+
+If you run the finality lab with a funded wallet, the scoreboard will record the first real
+measurement published on Cookie Chain.
 
 ---
 
