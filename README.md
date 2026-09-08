@@ -63,7 +63,12 @@ Opens straight into live chain state so anyone (including a reviewer with no COO
 
 Takes the current `confirmed` head and times how long the `finalized` head needs to reach it.
 That needs nothing but public RPC reads, so **every visitor sees genuinely measured finality**
-rather than an empty panel. Reports median, mean, and consensus depth in slots.
+rather than an empty panel. Reports median, p95, fastest, mean, and consensus depth in slots.
+
+It keeps sampling while the tab is open, and keeps the samples in the browser between visits, so
+the picture sharpens the longer you leave it — one measurement is an anecdote, a hundred is a
+distribution. Sampling pauses while the tab is hidden, because polling a chain nobody is watching
+is just noise. There is a checkbox to stop it and a link to forget the stored samples.
 
 This exists specifically because the transaction lab needs COOK. Without it, anyone without a
 funded wallet — most first-time visitors — would see no measured data at all.
