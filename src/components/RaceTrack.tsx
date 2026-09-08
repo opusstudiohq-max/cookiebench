@@ -21,19 +21,20 @@ export const IDLE_RACE: RaceState = {
   demo: false,
 };
 
-const STAGES = [
-  { key: 'processedMs', label: 'Processed', blurb: 'in a block' },
-  { key: 'confirmedMs', label: 'Confirmed', blurb: 'supermajority' },
-  { key: 'finalizedMs', label: 'Finalized', blurb: 'irreversible' },
-] as const;
+/**
+ * The race is scaled to one second because that is the window the *confirmation*
+ * claim lives in. Finalization is a different claim: it waits the ~32-slot
+ * consensus depth, which is seconds. Both are shown, and they are not conflated.
+ */
+const FULL_SCALE_MS = 1000;
 
 /** Ticks while a run is in flight so the elapsed time counts up smoothly. */
-function useElapsed(startAt: number | null, running: boolean): number {
+function useFrameTick(active: boolean): void {
   const [, force] = useState(0);
   const raf = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!running || startAt === null) return;
+    if (!active) return;
     const loop = () => {
       force((n) => n + 1);
       raf.current = requestAnimationFrame(loop);
@@ -42,26 +43,20 @@ function useElapsed(startAt: number | null, running: boolean): number {
     return () => {
       if (raf.current !== null) cancelAnimationFrame(raf.current);
     };
-  }, [running, startAt]);
-
-  if (startAt === null) return 0;
-  return performance.now() - startAt;
+  }, [active]);
 }
 
-/**
- * The visual centrepiece: a stopwatch racing a real transaction through Cookie
- * Chain's three commitment levels. The scale is fixed at one second so
- * sub-second finality is immediately legible — the bar simply does not reach
- * the end before the run is done.
- */
 export function RaceTrack({ race }: { race: RaceState }) {
-  const live = useElapsed(race.startAt, race.running);
-  const settled = race.finalizedMs ?? null;
-  const elapsed = settled ?? (race.startAt === null ? 0 : live);
+  // Stop the clock at confirmation: that is what the one-second race is about.
+  const raceDone = race.confirmedMs !== null;
+  useFrameTick(race.running && !raceDone);
 
-  const FULL_SCALE_MS = 1000;
+  const elapsed =
+    race.confirmedMs ??
+    (race.startAt === null || !race.running ? 0 : performance.now() - race.startAt);
+
   const pct = Math.min(100, (elapsed / FULL_SCALE_MS) * 100);
-  const beatOneSecond = settled !== null && settled < FULL_SCALE_MS;
+  const subSecond = race.confirmedMs !== null && race.confirmedMs < FULL_SCALE_MS;
 
   return (
     <div className={race.demo ? 'race race-demo' : 'race'}>
@@ -69,11 +64,11 @@ export function RaceTrack({ race }: { race: RaceState }) {
         <div className="stopwatch">
           <span className="stopwatch-value">{race.startAt === null ? '0 ms' : fmtMs(elapsed)}</span>
           <span className="stopwatch-label">
-            {race.running ? 'elapsed' : settled === null ? 'ready' : 'to finality'}
+            {raceDone ? 'to confirmation' : race.running ? 'elapsed' : 'ready'}
           </span>
         </div>
         {race.demo ? <span className="demo-tag">simulated replay</span> : null}
-        {beatOneSecond ? <span className="beat">under one second ✔</span> : null}
+        {subSecond ? <span className="beat">confirmed under one second ✔</span> : null}
       </div>
 
       <div className="track" aria-hidden="true">
@@ -84,47 +79,76 @@ export function RaceTrack({ race }: { race: RaceState }) {
       </div>
 
       <div className="stage-row">
-        {STAGES.map((s) => {
-          const value = race[s.key];
-          const done = value !== null;
-          return (
-            <div key={s.key} className={done ? 'stage done' : 'stage'}>
-              <span className="stage-dot" />
-              <span className="stage-label">{s.label}</span>
-              <span className="stage-value">{done ? fmtMs(value) : '—'}</span>
-              <span className="stage-blurb">{s.blurb}</span>
-            </div>
-          );
-        })}
+        <Stage label="Processed" value={race.processedMs} blurb="in a block" />
+        <Stage label="Confirmed" value={race.confirmedMs} blurb="supermajority voted" />
+        <Stage
+          label="Finalized"
+          value={race.finalizedMs}
+          blurb="irreversible · ~31 slots later"
+          offScale
+        />
       </div>
+
+      <p className="race-note muted small">
+        The one-second race measures <strong>confirmation</strong> — the point a supermajority has
+        voted, and what a user actually waits for. <strong>Finalization</strong> is a separate
+        guarantee that waits the usual ~32-slot consensus depth, so it lands seconds later by
+        design, not milliseconds. Conflating the two would flatter the chain inaccurately.
+      </p>
+    </div>
+  );
+}
+
+function Stage({
+  label,
+  value,
+  blurb,
+  offScale,
+}: {
+  label: string;
+  value: number | null;
+  blurb: string;
+  offScale?: boolean;
+}) {
+  const done = value !== null;
+  return (
+    <div className={done ? 'stage done' : 'stage'}>
+      <span className={offScale && done ? 'stage-dot off-scale' : 'stage-dot'} />
+      <span className="stage-label">{label}</span>
+      <span className="stage-value">{done ? fmtMs(value) : '—'}</span>
+      <span className="stage-blurb">{blurb}</span>
     </div>
   );
 }
 
 /**
- * Drives an illustrative replay so the visualisation is usable with no wallet and
- * no COOK. Timings are plausible values in the range this tool actually measures;
- * the UI labels them as simulated and no transaction is ever created.
+ * Illustrative replay for visitors without a wallet or COOK.
+ *
+ * Timings are the values this tool actually measured on Cookie Chain: confirmation
+ * inside half a second, finalization about 15.6s later at ~31 slots depth. The
+ * finalization *wait* is compressed so the replay does not stall for 15 seconds;
+ * the figure shown is the real one, and the panel is tagged as a replay throughout.
  */
 export function runDemo(update: (r: RaceState) => void, done: () => void): () => void {
   const startAt = performance.now();
-  const timings = { processed: 260, confirmed: 430, finalized: 690 };
+  const MEASURED = { processed: 420, confirmed: 460, finalized: 15_610 };
   const base: RaceState = { ...IDLE_RACE, startAt, running: true, demo: true };
   update(base);
 
   const timers: number[] = [];
   const at = (ms: number, fn: () => void) => timers.push(window.setTimeout(fn, ms));
 
-  at(timings.processed, () => update({ ...base, processedMs: timings.processed }));
-  at(timings.confirmed, () =>
-    update({ ...base, processedMs: timings.processed, confirmedMs: timings.confirmed }),
+  at(MEASURED.processed, () => update({ ...base, processedMs: MEASURED.processed }));
+  at(MEASURED.confirmed, () =>
+    update({ ...base, processedMs: MEASURED.processed, confirmedMs: MEASURED.confirmed }),
   );
-  at(timings.finalized, () => {
+  // Compressed: the displayed finalization figure is real, the waiting is not.
+  at(MEASURED.confirmed + 1100, () => {
     update({
       ...base,
-      processedMs: timings.processed,
-      confirmedMs: timings.confirmed,
-      finalizedMs: timings.finalized,
+      processedMs: MEASURED.processed,
+      confirmedMs: MEASURED.confirmed,
+      finalizedMs: MEASURED.finalized,
       running: false,
     });
     done();

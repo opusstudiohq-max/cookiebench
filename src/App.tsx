@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { NetworkPulse } from './components/NetworkPulse';
 import { FinalityLab } from './components/FinalityLab';
+import { FinalityObserver } from './components/FinalityObserver';
 import { Scoreboard } from './components/Scoreboard';
 import { detectWallets, onWalletsChanged, type DetectedWallet } from './lib/wallet';
 import { RPC_URL } from './lib/chain';
@@ -29,8 +30,8 @@ export default function App() {
         </div>
         <h1>CookieBench</h1>
         <p className="tagline">
-          Cookie Chain says sub-second finality. This measures it — from your browser, with real
-          transactions you can verify on-chain.
+          Cookie Chain says sub-second finality. This measures what that actually means — from
+          your browser, with real transactions you can verify on-chain.
         </p>
         <p className="muted small">
           RPC <code>{RPC_URL}</code>
@@ -39,6 +40,7 @@ export default function App() {
 
       <main>
         <NetworkPulse />
+        <FinalityObserver />
         <FinalityLab wallets={wallets} onRefreshWallets={rescan} />
         <Scoreboard />
 
@@ -60,14 +62,21 @@ export default function App() {
               the numbers are what a user actually waits.
             </li>
             <li>
-              <code>getSignatureStatuses</code> is polled every 50&nbsp;ms to catch the transitions to
-              <em> processed</em>, <em>confirmed</em>, and <em>finalized</em>.
+              <code>getSignatureStatuses</code> is polled adaptively: every 50&nbsp;ms while
+              confirmation is pending, then every 500&nbsp;ms while waiting out finalization.
+              Polling the second phase at 50&nbsp;ms would issue hundreds of pointless calls.
             </li>
             <li>
               The real fee is read back from the finalized transaction&rsquo;s metadata — not
               estimated.
             </li>
           </ol>
+          <p className="muted small">
+            <strong>Confirmation and finalization are different claims.</strong> Confirmation is
+            sub-second and is what a user waits for. Finalization waits the ~32-slot consensus
+            depth, so it takes seconds. Any tool reporting a single &ldquo;finality&rdquo; number is
+            hiding one of the two.
+          </p>
           <p className="muted small">
             <strong>Reading the numbers.</strong> Latency includes your network round-trip to the RPC,
             which is why <em>submit</em> is reported separately: subtract it for closer to pure chain

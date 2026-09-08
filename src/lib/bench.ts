@@ -32,7 +32,11 @@ export interface RunResult {
   error?: string;
 }
 
-const POLL_INTERVAL_MS = 50;
+// Confirmation lands within about a slot, so it is worth polling hard for.
+// Finalization waits the ~32-slot consensus depth (measured at ~15s on Cookie
+// Chain), so polling that phase at 50ms would issue hundreds of pointless calls.
+const FAST_POLL_MS = 50;
+const SLOW_POLL_MS = 500;
 const FINALIZE_TIMEOUT_MS = 90_000;
 
 export function buildMemoTx(payer: PublicKey, text: string): Transaction {
@@ -157,7 +161,7 @@ export async function runOnce(
         return { ...base, error: 'Blockhash expired before the transaction was picked up.' };
       }
     }
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    await new Promise((r) => setTimeout(r, seenConfirmed ? SLOW_POLL_MS : FAST_POLL_MS));
   }
 
   return { ...base, error: 'Timed out waiting for finalization.' };

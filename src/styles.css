@@ -561,3 +561,14 @@ footer p {
     margin-left: 0;
   }
 }
+
+.race-note {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.stage-dot.off-scale {
+  background: var(--muted);
+  border-color: var(--muted);
+  box-shadow: 0 0 0 3px rgba(163, 144, 124, 0.14);
+}

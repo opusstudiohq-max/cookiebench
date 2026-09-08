@@ -80,3 +80,41 @@ export async function measureSlotTime(samples = 3, gapMs = 2000): Promise<number
 
 export const explorerTx = (sig: string) => `${EXPLORER}/tx/${sig}`;
 export const explorerAddress = (addr: string) => `${EXPLORER}/address/${addr}`;
+
+export interface CommitmentLag {
+  /** Slots the finalized head trails the confirmed head — the consensus depth. */
+  slotGap: number;
+  /** Wall-clock time for one slot to travel from confirmed to finalized. */
+  lagMs: number;
+  targetSlot: number;
+}
+
+/**
+ * Measures real commitment latency with no wallet and no funds.
+ *
+ * Takes the current confirmed head, then waits for the finalized head to reach it.
+ * This is why CookieBench can show measured finality to every visitor rather than
+ * only to someone holding COOK.
+ */
+export async function measureCommitmentLag(
+  timeoutMs = 60_000,
+  pollMs = 250,
+): Promise<CommitmentLag | null> {
+  const targetSlot = await connection.getSlot('confirmed');
+  const startedAt = performance.now();
+  const deadline = startedAt + timeoutMs;
+  const startFinalized = await connection.getSlot('finalized');
+
+  while (performance.now() < deadline) {
+    const finalized = await connection.getSlot('finalized').catch(() => null);
+    if (finalized !== null && finalized >= targetSlot) {
+      return {
+        slotGap: targetSlot - startFinalized,
+        lagMs: performance.now() - startedAt,
+        targetSlot,
+      };
+    }
+    await new Promise((r) => setTimeout(r, pollMs));
+  }
+  return null;
+}
