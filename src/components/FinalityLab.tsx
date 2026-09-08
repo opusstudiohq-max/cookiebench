@@ -12,6 +12,7 @@ import {
   type StandardAccount,
 } from '../lib/wallet';
 import { Histogram, Series } from './Charts';
+import { RaceTrack, IDLE_RACE, runDemo, type RaceState } from './RaceTrack';
 
 const PHASE_TEXT: Record<Phase, string> = {
   idle: 'Idle',
@@ -39,8 +40,36 @@ export function FinalityLab({ wallets, onRefreshWallets }: Props) {
   const [results, setResults] = useState<RunResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [publishSig, setPublishSig] = useState<string | null>(null);
+  const [race, setRace] = useState<RaceState>(IDLE_RACE);
+  const [demoRunning, setDemoRunning] = useState(false);
 
   const sorted = useMemo(() => sortWallets(wallets), [wallets]);
+
+  /**
+   * Drives the race visualisation from phase transitions. These timings are
+   * indicative: the authoritative per-run numbers come from the measurement
+   * engine and are shown in the results table.
+   */
+  const handlePhase = useCallback((p: Phase) => {
+    setPhase(p);
+    const now = performance.now();
+    setRace((prev) => {
+      if (p === 'submitting') return { ...IDLE_RACE, startAt: now, running: true };
+      if (prev.startAt === null) return prev;
+      const d = now - prev.startAt;
+      if (p === 'processed') return { ...prev, processedMs: d };
+      if (p === 'confirmed') return { ...prev, confirmedMs: d };
+      if (p === 'finalized') return { ...prev, finalizedMs: d, running: false };
+      if (p === 'failed') return { ...prev, running: false };
+      return prev;
+    });
+  }, []);
+
+  const startDemo = useCallback(() => {
+    if (demoRunning) return;
+    setDemoRunning(true);
+    runDemo(setRace, () => setDemoRunning(false));
+  }, [demoRunning]);
 
   const finalized = useMemo(
     () => results.map((r) => r.finalizedMs).filter((v): v is number => v !== null),
@@ -118,7 +147,7 @@ export function FinalityLab({ wallets, onRefreshWallets }: Props) {
     const collected: RunResult[] = [];
     try {
       for (let i = 1; i <= runs; i += 1) {
-        const r = await runOnce(payer, sign, i, setPhase);
+        const r = await runOnce(payer, sign, i, handlePhase);
         collected.push(r);
         setResults([...collected]);
         if (r.error) {
@@ -134,7 +163,7 @@ export function FinalityLab({ wallets, onRefreshWallets }: Props) {
       setBusy(false);
       void refreshBalance(account.address);
     }
-  }, [account, runs, sign, refreshBalance]);
+  }, [account, runs, sign, refreshBalance, handlePhase]);
 
   const publish = useCallback(async () => {
     if (!account || !stats) return;
@@ -173,11 +202,23 @@ export function FinalityLab({ wallets, onRefreshWallets }: Props) {
         {account ? <span className="badge">{shortAddr(account.address, 6)}</span> : null}
       </div>
 
+      <RaceTrack race={race} />
+
       {!account ? (
         <div className="connect">
           <p className="muted">
             Connect a Solana-compatible wallet pointed at <code>rpc.cookiescan.io</code>. Every run
             signs and broadcasts a real Memo transaction, so the wallet needs a small COOK balance.
+          </p>
+          <div className="actions">
+            <button className="ghost" disabled={demoRunning} onClick={startDemo}>
+              {demoRunning ? 'Replaying…' : 'Watch a simulated run'}
+            </button>
+          </div>
+          <p className="muted small">
+            No wallet or COOK? The simulated run replays representative timings so you can see how
+            the measurement reads. It sends no transaction and produces no scorecard — only a real
+            run does that.
           </p>
           {sorted.length === 0 ? (
             <div className="empty">

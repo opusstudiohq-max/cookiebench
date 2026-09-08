@@ -31,7 +31,17 @@ Roughly **2–3× faster than the documented ~1 s**. Repeat measurements land in
 Opens straight into live chain state so anyone (including a reviewer with no COOK) sees real data immediately: slot, block height, epoch progress, reachable validators, Agave version, total transactions, COOK supply, and a **slot time measured live from your browser**.
 
 ### 2. Finality lab — the measurement
-Connect a wallet, choose a run count, and each run:
+
+A stopwatch races each transaction through Cookie Chain's three commitment levels against a
+fixed one-second scale, so sub-second finality is legible at a glance: the bar simply does not
+reach the end before the run is over.
+
+**No wallet or COOK? Press "Watch a simulated run."** It replays representative timings through
+the same visualisation so the tool can be evaluated end to end without spending anything. It is
+labelled `simulated replay` on screen, sends no transaction, and produces no scorecard — only a
+real run does that.
+
+Connect a wallet, choose a run count, and each run reports:
 
 | Milestone | What it means |
 | --- | --- |
