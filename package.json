@@ -1,0 +1,30 @@
+{
+  "name": "cookiebench",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A live finality and fee lab for Cookie Chain — prove sub-second finality with real, verifiable on-chain measurements.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "verify:chain": "node scripts/verify-chain.mjs",
+    "deploy": "npm run build && node scripts/deploy-pages.mjs"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.98.0",
+    "@wallet-standard/app": "^1.1.0",
+    "buffer": "^6.0.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
+}
